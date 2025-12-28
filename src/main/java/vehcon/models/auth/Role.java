@@ -12,23 +12,23 @@ import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public enum Role {
-	
-	ADMIN(Collections.emptySet()),
-	ADMINISTRATOR(Collections.emptySet()),
-	DA(Collections.emptySet()),
-	TD(Collections.emptySet())	
-	;
 
-	  @Getter
-	  private final Set<Permission> permissions;
+    ADMIN(Collections.emptySet()),
+    ADMINISTRATOR(Collections.emptySet()),
+    DA(Collections.emptySet()),
+    TD(Collections.emptySet()),
+    SAD1(Collections.emptySet()),
+    SAD2(Collections.emptySet());
 
-	  public List<SimpleGrantedAuthority> getAuthorities() {
-	    var authorities = getPermissions()
-	            .stream()
-	            .map(permission -> new SimpleGrantedAuthority(permission.getPermission()))
-	            .collect(Collectors.toList());
-	    authorities.add(new SimpleGrantedAuthority("ROLE_" + this.name()));
-	    return authorities;
-	  }
+    @Getter
+    private final Set<Permission> permissions;
 
+    public List<SimpleGrantedAuthority> getAuthorities() {
+        var authorities = getPermissions()
+                .stream()
+                .map(permission -> new SimpleGrantedAuthority(permission.getPermission()))
+                .collect(Collectors.toList());
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + this.name()));
+        return authorities;
+    }
 }

@@ -31,95 +31,102 @@ import vehcon.services.auth.CaptchaService;
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthenticationController {
-	
-	private final AuthenticationService authService;
-	private final CaptchaService captchaService;
-	
-	@PostMapping("/authenticate")
-	public ResponseEntity<AuthenticationResponse> authenticate(@Valid @RequestBody AuthenticationRequest request,
-			HttpServletRequest httpRequest, HttpServletResponse httpResponse) throws BadCredentialsException, UsernameNotFoundException, IOException {
-//		CaptchaEntry captcha = captchaStore.get(request.getUuid().toString());
-//	        
-//	        System.out.println(captcha != null && captcha.getCaptcha().equals(request.getCaptcha()));
-//	        System.out.println("User captcha is: "+request.getCaptcha()+" and the captcha store captcha is: "+captcha);
-//	        System.out.println("The captcha Store is:"+captchaStore);
-//	        if (captcha != null && captcha.getCaptcha().equals(request.getCaptcha())) {
-//	            captchaStore.remove(request.getUuid().toString());
-//	        }
-//	        System.out.println("The captcha Store is:"+captchaStore);
-		if (captchaService.validateCaptcha(request.getCaptchaToken().toString(), request.getCaptcha())) {
-			return ResponseEntity.ok(authService.authenticate(request, httpRequest, httpResponse));
-		} else
-			throw new UnauthorizedException("Invalid Captcha");
-	}
-	
-	@PostMapping("/authenticate2")
-	public ResponseEntity<AuthenticationResponse> authenticate2(@Valid @RequestBody AuthenticationRequest request,
-			HttpServletRequest httpRequest, HttpServletResponse httpResponse) throws BadCredentialsException, UsernameNotFoundException, IOException {
-//		CaptchaEntry captcha = captchaStore.get(request.getUuid().toString());
-//	        
-//	        System.out.println(captcha != null && captcha.getCaptcha().equals(request.getCaptcha()));
-//	        System.out.println("User captcha is: "+request.getCaptcha()+" and the captcha store captcha is: "+captcha);
-//	        System.out.println("The captcha Store is:"+captchaStore);
-//	        if (captcha != null && captcha.getCaptcha().equals(request.getCaptcha())) {
-//	            captchaStore.remove(request.getUuid().toString());
-//	        }
-//	        System.out.println("The captcha Store is:"+captchaStore);
-		if (captchaService.validateCaptcha(request.getCaptchaToken().toString(), request.getCaptcha())) {
-			return ResponseEntity.ok(authService.authenticate2(request, httpRequest, httpResponse));
-		} else
-			throw new UnauthorizedException("Invalid Captcha");
-	}
 
-	@GetMapping("/refresh-token")
-	public void refreshToken(HttpServletRequest request, HttpServletResponse response) throws IOException {
-		try {
-			authService.refreshToken(request, response);
-		} catch (UnauthorizedException ex) {
-			throw ex;
-		} catch (Exception ex) {
-			throw new InternalServerError("Unable to refresh token.", ex);
-		}
-	}
+    private final AuthenticationService authService;
+    private final CaptchaService captchaService;
 
-	@GetMapping("/refresh-captcha")
-	public ResponseEntity<Map<String, Object>> refreshCaptcha() {
-		try {			
-			return ResponseEntity.ok(captchaService.generateCaptcha());
-		} catch (Exception ex) {
-			throw new InternalServerError("Unable to refresh Captcha", ex);
-		}
-	}
 
-	@GetMapping("/get-public-key")
-	public ResponseEntity<Map<String, Object>> getPublicKey() {
-		Map<String, Object> map = new HashMap<>();
-		try {
-			map.put("publicKey", authService.getPublicKey());
-			return new ResponseEntity<>(map, HttpStatus.OK);
-		} catch (Exception ex) {
-			throw new InternalServerError("Unable to get Public Key", ex);
-		}
-	}
-	
-	@Transactional
-	@PostMapping("/register")
-	public ResponseEntity<Map<String, String>> register(@Valid @RequestBody RegisterRequest request,
-			HttpServletRequest httpRequest) {
-		try {
-			Map<String, String> map = new HashMap<>();
-			
-			//request.setRole(DA);
-			
-			authService.register(request);
-			map.put("detail", "User Registered.");
+    // ----------------- LOGIN (Only One) -----------------
 
-			return new ResponseEntity<>(map, HttpStatus.OK);
+    @PostMapping("/authenticate")
+    public ResponseEntity<AuthenticationResponse> authenticate(
+            @Valid @RequestBody AuthenticationRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse)
+            throws BadCredentialsException, UsernameNotFoundException, IOException {
 
-		} catch (UnauthorizedException|InternalServerError ex) {
-			throw ex;
-		} catch (Exception ex) {
-			throw new InternalServerError("Unable to register user", ex);
-		}
-	}
+        // Validate captcha ONCE here ONLY
+        boolean validCaptcha =
+                captchaService.validateCaptcha(
+                        request.getCaptchaToken().toString(),
+                        request.getCaptcha()
+                );
+
+        if (!validCaptcha)
+            throw new UnauthorizedException("Invalid Captcha");
+
+        // Proceed with actual authentication
+        return ResponseEntity.ok(
+                authService.authenticate(request, httpRequest, httpResponse)
+        );
+    }
+
+
+
+    // ----------------- REFRESH TOKEN -----------------
+
+    @GetMapping("/refresh-token")
+    public void refreshToken(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        try {
+            authService.refreshToken(request, response);
+        } catch (UnauthorizedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new InternalServerError("Unable to refresh token.", ex);
+        }
+    }
+
+
+
+    // ----------------- REFRESH CAPTCHA -----------------
+
+    @GetMapping("/refresh-captcha")
+    public ResponseEntity<Map<String, Object>> refreshCaptcha() {
+        try {
+            Map<String, Object> captcha = captchaService.generateCaptcha();
+            return ResponseEntity.ok(captcha);
+        } catch (Exception ex) {
+            throw new InternalServerError("Unable to refresh Captcha", ex);
+        }
+    }
+
+
+
+    // ----------------- GET PUBLIC KEY -----------------
+
+    @GetMapping("/get-public-key")
+    public ResponseEntity<Map<String, Object>> getPublicKey() {
+        Map<String, Object> map = new HashMap<>();
+        try {
+            map.put("publicKey", authService.getPublicKey());
+            return new ResponseEntity<>(map, HttpStatus.OK);
+        } catch (Exception ex) {
+            throw new InternalServerError("Unable to get Public Key", ex);
+        }
+    }
+
+
+
+    // ----------------- REGISTER USER -----------------
+
+    @Transactional
+    @PostMapping("/register")
+    public ResponseEntity<Map<String, String>> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest) {
+
+        try {
+            authService.register(request);
+
+            Map<String, String> map = new HashMap<>();
+            map.put("detail", "User Registered.");
+
+            return new ResponseEntity<>(map, HttpStatus.OK);
+
+        } catch (UnauthorizedException | InternalServerError ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new InternalServerError("Unable to register user", ex);
+        }
+    }
 }

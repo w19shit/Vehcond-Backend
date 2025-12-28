@@ -2,9 +2,7 @@ package vehcon.config;
 
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
-import static vehcon.models.auth.Role.ADMIN;
-import static vehcon.models.auth.Role.DA;
-import static vehcon.models.auth.Role.TD;
+import static org.springframework.http.HttpMethod.PUT;
 
 import java.util.List;
 
@@ -16,12 +14,10 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.header.writers.XContentTypeOptionsHeaderWriter;
-import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 
@@ -34,182 +30,132 @@ import vehcon.services.auth.LogoutService;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-	private final JwtAuthenticationFilter jwtAuthFilter;
-	private final AuthenticationProvider authenticationProvider;
-	// private final LogoutHandler logoutHandler;
-	@Autowired
-	private final LogoutService logoutService;
-	@Autowired
-	private Environment env;
+    private final JwtAuthenticationFilter jwtAuthFilter;
+    private final AuthenticationProvider authenticationProvider;
 
-	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		http.csrf().disable().authorizeHttpRequests().requestMatchers("/auth/**").permitAll()
-				.requestMatchers(GET, "/users/get-user-info").hasAnyAuthority(ADMIN.name())
-				
-				.requestMatchers(GET, "/users/profile",
-						"/users/list/enabled",
-						"/users/list/disabled",
-						"/menu",
-						"/districts","/districts/list", 
-						"/financial-year", "/financial-year/list",
-						"/district-rto", "/district-rto/list",
-						"/vehicle-type","/vehicle-type/list",
-						"/vehicle-manufacturer", "/vehicle-manufacturer/list",
-						"/department", "/department/list", "/department/all-for-selection",
-						"/vehicle-parts","/vehicle-parts/list",
-						"/processes/list",
-						"/draft/list",
-						"/draft/reject-list",
-						
-						"/draft/details/**",
-						
-						"/final-submit/list",
-						"/transport-review/with-mvi","/transport-review/without-mvi",
-						"/transport-placement/list",
-						"/transport-price-fixation/placed-before-vcc",
-						"/transport-action/heavy-vehicles",
-						"/transport-action/tendered-vehicles",
-						"/transport-action/scrapped-vehicles",
-						"/transport-allotment/priced", 
-						"/transport-lifting/allotted-list",
-						"/transport-lifting/lifted-vehicles",
-						"/transport-non-lifted/list",
-						"/role","/role/list",
-						"/pageUrl",
-						
-						"/reports/vehicle-report/**",
-						"/reports/allotment-letter/**",
-						"/reports/approved-vehicles-report/pdf",
-						"/reports/approved-vehicles/xlsx",
-						"/reports/condemn-vehicles-report/pdf",
-						"/reports/condemn-vehicles-report/xlsx",
-						"/reports/circulated-vehicles-report/pdf",
-						"/reports/circulated-vehicles-report/xlsx",
-						"/reports/allotted-vehicles-report/pdf",
-						"/reports/allotted-vehicles-report/xlsx",
-						"/reports/tendered-vehicles-report/pdf",
-						"/reports/tendered-vehicles-report/xlsx",
-						"/reports/lifted-vehicles-report/pdf",
-						"/reports/lifted-vehicles-report/xlsx",
-						"/reports/scrapped-vehicles-report/pdf",
-						"/reports/scrapped-vehicles-report/xlsx",
-						"/reports/non-lifted-vehicles-report/pdf",
-						"/reports/non-lifted-vehicles-report/xlsx",
-						
-						"/dates/approved",
-						"/dates/condemned-vehicle",
-						"/dates/circulated",
-						"/dates/allotted",
-						"/dates/tendered",
-						"/dates/lifted",
-						"/dates/scrapped",
-						"/dates/non-lifted",
-						
-						"/assigned-pages/**",
-						"/final-submit/details/**"
-						)
-				.hasAnyAuthority( DA.name(), ADMIN.name(),TD.name())
-				
-//				.requestMatchers(PUT, "/users/get-user-info").hasAnyAuthority(ADMIN.name())
-				
-				.requestMatchers(POST, "/users/change-password","/users/update",
-						"/draft",
-						"/final-submit",
-						"/department/add-department",
-						"/districts/add-districts",
-						"/district-rto/add-district-rto",
-						"/financial-year/add-financial-year",
-						"/vehicle-manufacturer/add-vehicle-manufacturer",
-						"/vehicle-type/add-vehicle-type",
-						"/vehicle-parts/add-vehicle-parts",
-						"/processes/add-processes",
-						"/transport-review/approve", "/transport-review/reject/*",
-						"/transport-placement/place-before-vcc", 
-						"/transport-price-fixation/fixing-price",
-						"/transport-action/declare-scrap", 
-						"/transport-action/declare-tender", 
-						"/transport-allotment/allot", 
-						"/transport-lifting/lift",
-						"/role/add-role",
-						
-						"/assign-pages/**"
-						)
-				.hasAnyAuthority(DA.name(), ADMIN.name(), TD.name())
+    @Autowired
+    private final LogoutService logoutService;
 
-				.and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
-				.authenticationProvider(authenticationProvider)
-				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-				.logout(logout -> logout.logoutUrl("/auth/logout")
-						// .addLogoutHandler(logoutHandler)
-						.logoutSuccessHandler(logoutService).invalidateHttpSession(true).deleteCookies("JSESSIONID"));
-		// .logoutUrl("/auth/logout").addLogoutHandler(logoutHandler)
-		// .logoutSuccessHandler((request, response, authentication) ->
-		// SecurityContextHolder.clearContext());
+    @Autowired
+    private Environment env;
 
-		String urls = env.getProperty("cors.urls");
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-		http.cors(cors -> {
-			CorsConfigurationSource cs = resources -> {
-				CorsConfiguration corsConfiguration = new CorsConfiguration();
-				corsConfiguration.setAllowedOrigins(List.of(urls));
-				// corsConfiguration.setAllowedOrigins(List.of("*"));
-				corsConfiguration.setAllowedMethods(List.of("POST", "GET", "DELETE", "PUT"));
-				corsConfiguration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With",
-						"Accept", "X-XSRF-TOKEN", "API-Key", "Referrer-Policy", "Referer", "Content-Length",
-						"Cache-Control", "Upgrade-Insecure-Requests"
-				// Add forwarding-related headers here
-				// "X-Forwarded-For",
-				// "X-Forwarded-Host",
-				// "X-Forwarded-Proto",
-				// "X-Forwarded-Port"
-				));
-				corsConfiguration.setAllowCredentials(true);
-				return corsConfiguration;
-			};
-			cors.configurationSource(cs);
-		});
-		http.headers(x -> {
-			x.xssProtection(y -> y.headerValue(XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK));
-			x.addHeaderWriter(new XContentTypeOptionsHeaderWriter());
-			// x.frameOptions(y -> y.sameOrigin());
-//	    	//x.contentTypeOptions().disable();
-//	    	x.referrerPolicy(y -> y.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN));
-			// x.contentSecurityPolicy(y-> y.policyDirectives("default-src 'self';"
-//			+"script-src 'self' frame-src 'self' connect-src 'self' https://192.168.11.2 https://192.168.11.2:8443 http://192.168.11.2 http://192.168.11.2:8080 https://gad.meghalaya.gov.in https://gad.meghalaya.gov.in:8443 http://gad.meghalaya.gov.in http://gad.meghalaya.gov.in:8080 https://localhost https://localhost:8443 http://localhost http://localhost:8080"));
-//	x.contentSecurityPolicy(y-> y.policyDirectives("default-src 'self';"
-//+"script-src 'self' frame-src 'self' connect-src 'self' https://gad.meghalaya.gov.in https://gad.meghalaya.gov.in:8443"));
-			x.contentSecurityPolicy(
-					y -> y.policyDirectives("default-src 'self'; object-src https://megepayment.gov.in; "
-							+ "script-src 'self'; frame-src 'self'; connect-src 'self' http://10.179.2.111 http://10.179.13.183:8083;"));
-//	    	 // Add CORS headers manually
-//	        x.addHeaderWriter((request, response) -> {
-//	            response.setHeader("Access-Control-Allow-Origin", "http://10.179.2.178/");
-//	            response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-//	            response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept,X-XSRF-TOKEN, API-Key, Referrer-Policy, Referer,Content-Length, Cache-Control,Upgrade-Insecure-Requests");
-//	            response.setHeader("Access-Control-Allow-Credentials", "true");
-//	        });
-		});
+        http.csrf(csrf -> csrf.disable());
 
-		return http.build();
-	}
+        http.authorizeHttpRequests(auth -> auth
 
-	@Bean
-	public WebSecurityCustomizer webSecurityCustomizer() {
-		return (web) -> web.ignoring().requestMatchers("/oras/auth/**")
-		 .requestMatchers("/v3/api-docs/**")
-		 .requestMatchers("configuration/**")
-		 .requestMatchers("/swagger*/**")
-		 .requestMatchers("/webjars/**")
-		 .requestMatchers("/swagger-ui/**");
-	}
+            // Allow public auth endpoints (both with and without context prefix)
+            .requestMatchers(
+                "/auth/**",
+                "/vehcond/auth/**",
+                "/uploads/**"
+            ).permitAll()
 
-//	@Bean
-//    public LogoutSuccessHandler logoutSuccessHandler() {
-//		return new LogoutService();
-//        //SimpleUrlLogoutSuccessHandler successHandler = new SimpleUrlLogoutSuccessHandler();
-//        //successHandler.setDefaultTargetUrl("/login?logout");
-//        //return successHandler;
-//    }
+            // Role-based GET access for all /vehcond/** GET requests
+            .requestMatchers(GET, "/vehcond/**",
+            		"/users/profile",
+        	        "/users/list/enabled",
+        	        "/users/list/disabled",
+        	        "/users/get-user-info",
+        	        "/driverss",
+        	        "/menu",
+        	        "/districts/**",
+        	        "/financial-year/**",
+        	        "/district-rto/**",
+        	        "/vehicle-type/**",
+        	        "/vehicle-manufacturer/**",
+        	        "/department/**",
+        	        "/poolparked/**",
+        	        "/repairrequest/**",
+        	        "/vehicle-parts/**",
+        	        "/processes/**",
+        	        "/draft/**",
+        	        "/final-submit/**",
+        	        "/transport-review/**",
+        	        "/transport-placement/**",
+        	        "/transport-price-fixation/**",
+        	        "/transport-action/**",
+        	        "/transport-allotment/**",
+        	        "/transport-lifting/**",
+        	        "/role/**",
+        	        "/pageUrl/**",
+        	        "/reports/**",
+        	        "/dates/**",
+        	        "/assigned-pages/**")
+            .hasAnyAuthority("ADMIN", "DA", "TD", "SAD1", "SAD2")
 
+            // Role-based PUT access for /vehcond/** (adjust if you want more granular lists)
+            .requestMatchers(PUT, "/vehcond/**", "/poolparked/**", "/repairrequest/**")
+            .hasAnyAuthority("TD", "SAD1", "SAD2", "DA")
+
+            // Role-based POST access for /vehcond/** (adjust if you want more granular lists)
+            .requestMatchers(POST, "/vehcond/**",
+            		"/users/**",
+        	        "/driverss",
+        	        "/poolparked/**",
+        	        "/repairrequest/**",
+        	        "/department/**",
+        	        "/vehicle-type/**",
+        	        "/vehicle-manufacturer/**",
+        	        "/draft/**",
+        	        "/final-submit/**",
+        	        "/processes/**",
+        	        "/transport-review/**",
+        	        "/transport-placement/**",
+        	        "/transport-price-fixation/**",
+        	        "/transport-action/**",
+        	        "/transport-allotment/**",
+        	        "/transport-lifting/**",
+        	        "/role/**",
+        	        "/assign-pages/**"
+            )
+            .hasAnyAuthority("ADMIN", "DA", "TD", "SAD1", "SAD2")
+
+            // Everything else still requires authentication
+            .anyRequest().authenticated()
+        );
+
+        // Stateless session (JWT)
+        http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+        // Add authentication provider + JWT filter
+        http.authenticationProvider(authenticationProvider);
+        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        // Logout — accept either /auth/logout or /vehcond/auth/logout (POST)
+        // Frontend must call POST /auth/logout (baseURL likely includes /vehcond), so this matcher accepts both.
+        http.logout(logout -> logout
+            .logoutRequestMatcher(new AntPathRequestMatcher("/**/auth/logout", "POST"))
+            .logoutSuccessHandler(logoutService)
+            .invalidateHttpSession(true)
+            .deleteCookies("JSESSIONID")
+        );
+
+        // CORS
+        String urls = env.getProperty("cors.urls");
+        http.cors(cors -> cors.configurationSource(req -> {
+            CorsConfiguration cfg = new CorsConfiguration();
+            cfg.setAllowedOrigins(List.of(urls == null ? "*" : urls));
+            cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+            cfg.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "X-Requested-With",
+                "API-Key",
+                "Cache-Control",
+                "referrer-policy",
+                "Referrer-Policy",
+                "Referer",
+                "Content-Length",
+                "Upgrade-Insecure-Requests"
+            ));
+            cfg.setAllowCredentials(true);
+            return cfg;
+        }));
+
+        return http.build();
+    }
 }

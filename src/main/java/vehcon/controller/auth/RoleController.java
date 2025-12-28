@@ -65,21 +65,16 @@ public class RoleController {
 		}
 	}
 	
-	@PostMapping("/add-roles")
-	public ResponseEntity<String> addRole(@RequestBody RolesDTO dto)
-	{
-		try
-		{
-			Roles savedRole = roleService.addRoles(dto);
-			return ResponseEntity
-					.status(HttpStatus.CREATED)
-					.body("Roles " + savedRole.getRole() + "created successfully");
-		}
-		catch(Exception e)
-		{
-			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body("Failed to create role: " + e.getMessage());
-		}
+	@PostMapping("/add-role")
+	public ResponseEntity<String> addRole(@RequestBody RolesDTO dto) {
+	    try {
+	        Roles savedRole = roleService.addRoles(dto);
+	        return ResponseEntity
+	                .status(HttpStatus.CREATED)
+	                .body("Role '" + savedRole.getRole() + "' created successfully");
+	    } catch (Exception e) {
+	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+	                .body("Failed to create role: " + e.getMessage());
+	    }
 	}
-
 }

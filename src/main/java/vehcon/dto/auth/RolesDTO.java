@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class RolesDTO {
-	private String rolename;
-	private String description;
+    private String role;         // matches frontend payload
+    private String description;  // optional
 }

@@ -32,84 +32,100 @@ import vehcon.services.appdata.CoreServices;
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-	
-	@Autowired
-	private final JwtService jwtService;
-	
-	@Autowired CoreServices coreServices;
-	private final UserDetailsService userDetailsService;
-	
-	@Value("${config.vehcond}")
-	private String configVehcond;
-	
-	@Override
-	protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
-			throws ServletException, IOException {
-		if (request.getMethod().equals("OPTIONS")) {
-			response.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
-		}
-		try {
-			
-			if (request.getServletPath().contains("/auth")) {
-				String apiKeyHeader = request.getHeader("API-Key");
-				
-				String apiKey = loadConfig();
-				if (apiKeyHeader == null || !apiKeyHeader.equals(apiKey)) {
-					response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid API Key");
-					return;
-				}
-				filterChain.doFilter(request, response);
-				return;
-			}
-			
-			final String authHeader = request.getHeader("Authorization");
-			final String jwt;
-			final String username; // Extract from the JWT Token
 
-			if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-				filterChain.doFilter(request, response);
-				return;
-			}
-			jwt = authHeader.substring(7);
-			
-			username = jwtService.extractUsername(jwt);
+    private final JwtService jwtService;
 
-			if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+    private final UserDetailsService userDetailsService;
 
-				UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+    @Autowired
+    private final CoreServices coreServices;
 
-				if (jwtService.isTokenValid(jwt, userDetails, coreServices.getClientIp(request))) {
-					UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(userDetails,
-							null, userDetails.getAuthorities());
-					authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-					SecurityContextHolder.getContext().setAuthentication(authToken);
-				}
-			}
+    @Value("${config.vehcond}")
+    private String configVehcond;
 
-			filterChain.doFilter(request, response);
-			
-		} catch (ExpiredJwtException exception) {
-			response.resetBuffer();
-			response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-			response.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
-			HashMap<String, String> mydata = new HashMap<String, String>();
-			mydata.put("message", "JWT token has expired");
-			response.getOutputStream().print(new ObjectMapper().writeValueAsString(mydata));
-			response.flushBuffer();
-		}
-	}
-	
-	private String loadConfig() {
-		try {
-			Path path = Paths.get(configVehcond);
-			Properties properties = new Properties();
-			properties.load(Files.newBufferedReader(path));
+    @Override
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-			return properties.getProperty("API_KEY");
+        // Allow CORS preflight (OPTIONS) to pass quickly
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            return;
+        }
 
-		} catch (IOException e) {
-			e.printStackTrace(); // Handle the exception appropriately
-		}
-		return null;
-	}
+        try {
+
+            String path = request.getServletPath();
+
+            // Allow authentication routes (login, refresh, logout, captcha) to be accessed
+            // without requiring a Bearer token — API-Key is validated for these endpoints.
+            if (path.startsWith("/auth/")) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // Normal JWT processing
+            final String authHeader = request.getHeader("Authorization");
+
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                // No token provided; let security configuration decide access to endpoint
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            final String jwt = authHeader.substring(7);
+            final String username = jwtService.extractUsername(jwt);
+
+            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                String clientIp = coreServices.getClientIp(request);
+
+                if (jwtService.isTokenValid(jwt, userDetails, clientIp)) {
+
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
+
+                    authToken.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
+
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
+            }
+
+            filterChain.doFilter(request, response);
+
+        } catch (ExpiredJwtException e) {
+
+            response.resetBuffer();
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+
+            HashMap<String, String> map = new HashMap<>();
+            map.put("message", "JWT token has expired");
+
+            response.getOutputStream().print(new ObjectMapper().writeValueAsString(map));
+            response.flushBuffer();
+        }
+    }
+
+    private String loadConfig() {
+        try {
+            Path path = Paths.get(configVehcond);
+            Properties properties = new Properties();
+            properties.load(Files.newBufferedReader(path));
+            return properties.getProperty("API_KEY");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
 }
